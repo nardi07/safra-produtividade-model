@@ -1,85 +1,78 @@
-# Churn Model — Previsão de Churn de Clientes (Telco)
+# Safra Produtividade Model — Previsão de Produtividade de Safra
 
-Modelo preditivo para identificar clientes com alta probabilidade de cancelamento (*churn*), construído sobre o dataset **Telco Customer Churn**. O projeto cobre o pipeline completo: EDA, pré-processamento, tratamento de desbalanceamento, seleção e otimização de modelo, ajuste de threshold de decisão, interpretabilidade, segmentação de clientes (clustering) e entrega de artefatos prontos para inferência.
+Modelo de regressão para prever a produtividade agrícola (`produtividade_ton_ha`) de um talhão a partir de variáveis de clima, solo e manejo. O projeto cobre o pipeline completo: EDA, pré-processamento, seleção e validação cruzada de modelos, otimização de hiperparâmetros, diagnóstico de resíduos, interpretabilidade e tradução dos resultados técnicos em valor de negócio.
+
+> **Base sintética.** Os dados usados neste projeto são sintéticos (cenário fictício), criados para fins de estudo/entrega acadêmica. O modelo precisa ser revalidado com dados reais antes de qualquer uso operacional.
 
 ## Conteúdo do repositório
 
-| Arquivo/Pasta | Descrição |
+| Arquivo | Descrição |
 |---|---|
-| `churn_notebook.ipynb` | Notebook principal com o pipeline completo de modelagem (EDA → deploy), dividido em 13 fases. |
-| `apresentacao_cliente_churn.ipynb` | Notebook de apresentação dos resultados, voltado para leitura por stakeholders. |
-| `TelcoCustomerChurn.csv` | Dataset bruto utilizado no treinamento. |
-| `dicionario_dados_churn.xlsx` | Dicionário de dados com a descrição de cada variável. |
-| `artefatos_modelo/pipeline_churn.pkl` | Pipeline treinado (pré-processamento + modelo) para previsão de churn. |
-| `artefatos_modelo/pipeline_clusters.pkl` | Pipeline de clustering para segmentação de clientes. |
-| `artefatos_modelo/metadados.json` | Metadados do modelo: threshold de decisão, features esperadas e métricas de teste. |
-| `artefatos_modelo/metadados_clusters.json` | Perfis e métricas dos clusters de clientes identificados. |
-| `artefatos_modelo/predict.py` | Script de inferência em produção. |
-| `artefatos_modelo/requirements.txt` | Dependências necessárias para rodar o modelo. |
+| `modelagem_produtividade_safra_v5 (1).ipynb` | Notebook principal e mais recente, com o pipeline completo de modelagem (EDA → relatório final), dividido em 11 fases. |
+| `modelo_previsao_produtividade.ipynb` | Versão anterior/exploratória do notebook, com as etapas iniciais de carregamento e EDA. |
+| `base_sintetica_previsao_produtividade_safra_v2.csv` | Dataset sintético utilizado no treinamento. |
 
-## Pipeline do notebook (`churn_notebook.ipynb`)
+Este repositório contém os notebooks e a base de dados. Os artefatos de produção citados no checklist do notebook (`models/modelo_produtividade_safra.joblib`, `relatorio_executivo.txt`, `predict.py`, `requirements.txt`) são gerados ao executar o notebook, mas ainda não foram exportados para este repositório.
 
-1. Carregamento e inspeção inicial dos dados
-2. Análise exploratória (target, numéricas, categóricas, nulos, outliers, separabilidade, correlações, dimensão temporal)
-3. Pré-processamento (incluindo correção de colinearidade perfeita)
+## Dataset
+
+Uma linha por talhão/safra, com as colunas:
+
+`id_talhao`, `ano_safra`, `regiao`, `cultivar`, `tipo_solo`, `irrigacao`, `area_plantada_ha`, `chuva_mm`, `temperatura_media_c`, `horas_sol_dia`, `ph_solo`, `fertilizante_kg_ha`, `indice_pragas`, `densidade_plantio_mil_sementes_ha`, `produtividade_ton_ha` (target)
+
+## Pipeline do notebook (`modelagem_produtividade_safra_v5 (1).ipynb`)
+
+1. Carregamento e inspeção inicial
+2. Análise exploratória — estrutura/nulos/duplicatas, target, variáveis numéricas e categóricas, padrão de nulos, outliers, multicolinearidade
+3. Pré-processamento
 4. Divisão treino/teste
-5. Tratamento de desbalanceamento de classes
-6. Escalonamento
-7. Seleção e treinamento de modelos base
-8. Otimização de hiperparâmetros
-9. Ajuste de threshold de decisão
-10. Diagnóstico e testes de qualidade
-11. Interpretabilidade (incluindo análise dos erros mais "confiantes")
-12. Segmentação de clientes via clustering
-13. Persistência dos artefatos finais
+5. Escalonamento e encoding (ajustados só no treino)
+6. Seleção e treinamento de modelos base (Dummy, Linear, Ridge, Lasso, ElasticNet, Decision Tree, Random Forest, Extra Trees, Gradient Boosting, SVR, KNN)
+7. Validação cruzada (K-Fold)
+8. Otimização de hiperparâmetros (RandomizedSearchCV)
+9. Diagnóstico e testes de qualidade dos resíduos
+10. Interpretabilidade (importância de features / SHAP)
+11. Persistência e entregáveis
+
+### Principais decisões de pré-processamento
+
+| Item | Decisão | Por quê |
+|---|---|---|
+| `id_talhao` | Removido | identificador, sem valor preditivo |
+| Duplicatas completas (15) | Removidas | erro de exportação/duplo lançamento |
+| `regiao`, `tipo_solo`, `cultivar`, `irrigacao` | Normalizados (strip + title case) | inconsistência de fonte de dados |
+| `chuva_mm`, `temperatura_media_c`, `ph_solo` (nulos ~4%) | Imputação pela mediana (fit no treino) | poucos nulos, padrão aleatório (MCAR) |
+| `indice_pragas` (nulos ~19%) | Flag `indice_pragas_nao_medido` + imputação pela mediana | ausência carrega informação (MNAR ligado à área) |
+| `fertilizante_kg_ha` (outliers ~10x) | Clip em 600 kg/ha | erro de digitação, não caso legítimo |
 
 ## Resultados do modelo
 
-Classe positiva: `Churn = Yes`. O threshold de decisão foi ajustado para priorizar recall, assumindo que um falso negativo (cliente que cancela e não foi identificado) é mais custoso que um falso positivo.
+**Modelo final: Gradient Boosting**, selecionado após comparação com 9 outros modelos e otimizado via `RandomizedSearchCV`.
+
+Métricas no conjunto de teste (20% dos dados, nunca visto no treino):
 
 | Métrica | Valor |
 |---|---|
-| Threshold de decisão | 0.15 |
-| Accuracy | 0.6593 |
-| Precision | 0.4329 |
-| Recall | 0.9144 |
-| F1 | 0.5876 |
-| ROC AUC | 0.8453 |
-| PR AUC | 0.6623 |
+| R² | 0.7841 |
+| MAE | 0.4591 ton/ha |
+| RMSE | 0.5701 ton/ha |
+| MAPE | 6.42% |
 
-## Segmentação de clientes (clustering)
+Intervalo de confiança (bootstrap, 95%): R² em [0.7426, 0.8163] · MAE em [0.4263, 0.4927] ton/ha.
 
-O modelo de clustering (k=4) identificou os seguintes perfis de clientes:
+**Valor de negócio:** comparado a uma estimativa ingênua pela média histórica (MAE 0.98 ton/ha, MAPE 13.8%), o modelo reduz o erro médio de estimativa em **53%**.
 
-| Cluster | Nome | % da base | Taxa de churn | Perfil |
-|---|---|---|---|---|
-| 0 | Só Telefone, Estáveis | 21.7% | 7% | Sem internet, mensalidade baixa, churn muito baixo. Sem prioridade de retenção. |
-| 1 | Premium Fidelizados | 28.7% | 13% | Maior tenure e gasto histórico, muitos serviços adicionais. Clientes de maior valor — proteger ativamente. |
-| 2 | DSL em Transição | 23.4% | 26% | Tenure baixo-médio, maioria em contrato mensal. Ainda "decidindo" se ficam. |
-| 3 | Fibra de Alto Risco | 26.2% | 57% | Fibra óptica, contrato mensal, menor tenure, mensalidade alta. Prioridade máxima de retenção. |
+Melhores hiperparâmetros encontrados: `n_estimators=500`, `max_depth=2`, `learning_rate=0.1`, `subsample=0.7`.
 
-## Como usar
+## Limitações e premissas
 
-### Instalação
+- Modelo treinado em dados sintéticos; validar com dados reais da cooperativa antes de uso operacional.
+- Não validado para valores de features fora do range observado no treino (ex.: chuva muito acima de 1687mm).
+- `ano_safra` foi tratado como covariável transversal, não como dimensão temporal — não usar este modelo para prever tendências futuras ano a ano.
 
-```bash
-pip install -r artefatos_modelo/requirements.txt
-```
+## Próximos passos recomendados
 
-### Rodando uma previsão
-
-```bash
-python artefatos_modelo/predict.py caminho_para_novos_clientes.csv
-```
-
-O script espera um CSV com as mesmas colunas do dataset original (`TelcoCustomerChurn.csv`) e gera `previsoes_churn.csv` com a probabilidade e a previsão de churn (0/1) para cada cliente, com base no threshold definido em `metadados.json`.
-
-### Features esperadas como input
-
-`gender`, `SeniorCitizen`, `Partner`, `Dependents`, `tenure`, `PhoneService`, `MultipleLines`, `InternetService`, `OnlineSecurity`, `OnlineBackup`, `DeviceProtection`, `TechSupport`, `StreamingTV`, `StreamingMovies`, `Contract`, `PaperlessBilling`, `PaymentMethod`, `MonthlyCharges`, `TotalCharges` (as duas últimas — `num_servicos_adicionais` e `cobranca_media_mensal_historica` — são derivadas automaticamente pelo script).
-
-## Premissas de negócio
-
-- Classe positiva: `Churn = Yes`.
-- Custo assumido: falso negativo mais caro que falso positivo (por isso o threshold foi reduzido para priorizar recall).
-- Caso o custo real de negócio seja diferente do assumido, o `THRESHOLD_FINAL` deve ser reajustado.
+- Coletar `indice_pragas` de forma mais consistente em talhões pequenos (hoje é o principal gerador de nulos ausentes não aleatórios).
+- Reavaliar o modelo a cada nova safra para detectar drift entre clima/manejo e produtividade.
+- Validar as leituras de importância de features/SHAP com um agrônomo antes de usar o modelo para recomendações de manejo.
+- Testar outros modelos de boosting (XGBoost/LightGBM/CatBoost) conforme restrições de infraestrutura.
