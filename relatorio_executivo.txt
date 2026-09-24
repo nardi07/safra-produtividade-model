@@ -1,0 +1,30 @@
+
+RELATORIO FINAL — Modelo de Previsão de Produtividade de Safra
+================================================================
+Modelo final: Gradient Boosting (com tuning via RandomizedSearchCV)
+
+Métricas no conjunto de teste (20% dos dados, nunca visto no treino):
+  R²   = 0.7841
+  MAE  = 0.4591 ton/ha
+  RMSE = 0.5701 ton/ha
+  MAPE = 6.42%
+
+Intervalo de confiança (bootstrap, 95%):
+  R²  em [0.7426, 0.8163]
+  MAE em [0.4263, 0.4927] ton/ha
+
+Limitações e premissas:
+  - Modelo treinado em dados sintéticos de um cenário fictício; validar com dados reais
+    da cooperativa antes de qualquer uso operacional.
+  - Não validado para valores de features fora do range observado no treino
+    (ex: chuva muito acima de 1687mm).
+  - `ano_safra` foi tratado como covariável transversal, não como dimensão temporal de
+    forecasting — não usar este modelo para prever tendências futuras ano a ano.
+
+Próximos passos recomendados:
+  - Coletar `indice_pragas` de forma mais consistente em talhões pequenos (hoje é o
+    principal gerador de nulos MNAR).
+  - Reavaliar o modelo a cada nova safra para detectar drift (mudança na relação
+    clima/manejo x produtividade ao longo do tempo).
+  - Validar as leituras de PDP/SHAP com um agrônomo antes de usar o modelo para
+    recomendações de manejo.

@@ -6,8 +6,8 @@ Uso:
 
 Espera um CSV com as mesmas colunas brutas da base de treino (exceto o
 target `produtividade_ton_ha`, que obviamente não existe para dados novos).
-Aplica a mesma limpeza estrutural feita no notebook (fase 3) e depois o
-pipeline de pré-processamento + modelo salvos em `models/`.
+Aplica a mesma limpeza estrutural e engenharia de features feita no notebook
+(Fase 3) e depois o pipeline de pré-processamento + modelo salvos em `models/`.
 """
 
 import argparse
@@ -22,8 +22,9 @@ MODELS_DIR = Path(__file__).parent / "models"
 
 
 def limpar_dados_novos(df: pd.DataFrame) -> pd.DataFrame:
-    """Replica a limpeza estrutural da Fase 3 do notebook (sem vazamento:
-    nenhuma dessas correções depende de estatísticas do treino)."""
+    """Replica a limpeza estrutural e a engenharia de features da Fase 3 do
+    notebook (sem vazamento: nenhuma dessas correções depende de estatísticas
+    do treino)."""
     df = df.copy()
 
     # Normaliza categorias (mesmas correções aplicadas no treino)
@@ -42,6 +43,13 @@ def limpar_dados_novos(df: pd.DataFrame) -> pd.DataFrame:
     # Flag de "índice de pragas não medido", igual ao treino
     if "indice_pragas" in df.columns:
         df["indice_pragas_nao_medido"] = df["indice_pragas"].isna().astype(int)
+
+    # Engenharia de features (igual à Fase 3 do notebook): razão
+    # fertilizante/área e termo quadrático de chuva.
+    if "fertilizante_kg_ha" in df.columns and "area_plantada_ha" in df.columns:
+        df["fertilizante_por_ha"] = df["fertilizante_kg_ha"] / df["area_plantada_ha"].clip(lower=0.1)
+    if "chuva_mm" in df.columns:
+        df["chuva_mm_sq"] = df["chuva_mm"] ** 2
 
     return df
 
